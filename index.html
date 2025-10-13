@@ -7,19 +7,55 @@
     body { font-family: sans-serif; text-align: center; margin-top: 50px; }
     #station { font-size: 1.5em; margin-top: 20px; }
     .info { margin-top: 1em; font-size: 0.9em; color: #555; }
+    button { margin-top: 20px; padding: 10px 20px; font-size: 1em; }
   </style>
 </head>
 <body>
   <h1>📍今いる場所の最寄り駅</h1>
   <div id="station">取得中...</div>
 
-  <!-- ✅ 案内文をここに追加 -->
+  <!-- ✅ 更新ボタン -->
+  <button onclick="getNearestStation()">もう一度調べる</button>
+
+  <!-- ✅ 案内文 -->
   <div class="info">
-    ※現在地を更新したい場合は、画面を下にフリック（引っ張って更新）してください。
+    ※現在地を更新したい場合は、上のボタンを押してください。
   </div>
 
-  <!-- ✅ JavaScriptはその後に読み込む -->
   <script src="stations.js"></script>
-  <script src="main.js"></script>
+  <script>
+    function getNearestStation() {
+      if (!navigator.geolocation) {
+        document.getElementById("station").textContent = "位置情報が取得できません。";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition((position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        let nearest = null;
+        let minDistance = Infinity;
+
+        for (const station of stations) {
+          const dx = lat - station.lat;
+          const dy = lon - station.lon;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearest = station;
+          }
+        }
+
+        document.getElementById("station").textContent = `最寄り駅：${nearest.name}`;
+      }, () => {
+        document.getElementById("station").textContent = "位置情報の取得に失敗しました。";
+      });
+    }
+
+    // ✅ 初回実行
+    getNearestStation();
+  </script>
 </body>
 </html>
