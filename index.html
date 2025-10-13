@@ -3,21 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <title>最寄り駅チェッカー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 50px; }
-    #station { font-size: 1.5em; margin-top: 20px; }
-    .info { margin-top: 1em; font-size: 0.9em; color: #555; }
-    button { margin-top: 20px; padding: 10px 20px; font-size: 1em; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin: 5vh 5vw;
+    }
+
+    h1 {
+      font-size: 5vw;
+    }
+
+    #station {
+      font-size: 6vw;
+      margin-top: 5vh;
+    }
+
+    button {
+      margin-top: 4vh;
+      padding: 1em 2em;
+      font-size: 4vw;
+    }
+
+    .info {
+      margin-top: 2vh;
+      font-size: 3.5vw;
+      color: #555;
+    }
+
+    @media (min-width: 768px) {
+      /* タブレット・PC向け調整 */
+      h1 { font-size: 2em; }
+      #station { font-size: 2em; }
+      button { font-size: 1em; }
+      .info { font-size: 0.9em; }
+    }
   </style>
 </head>
 <body>
   <h1>📍今いる場所の最寄り駅</h1>
   <div id="station">取得中...</div>
 
-  <!-- ✅ 更新ボタン -->
   <button onclick="getNearestStation()">もう一度調べる</button>
 
-  <!-- ✅ 案内文 -->
   <div class="info">
     ※現在地を更新したい場合は、上のボタンを押してください。
   </div>
@@ -54,7 +83,6 @@
       });
     }
 
-    // ✅ 初回実行
     getNearestStation();
   </script>
 </body>
