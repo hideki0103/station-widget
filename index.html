@@ -6,11 +6,17 @@
   <style>
     body { font-family: sans-serif; text-align: center; margin-top: 50px; }
     #station { font-size: 1.5em; margin-top: 20px; }
+    .info { margin-top: 1em; font-size: 0.9em; color: #555; }
   </style>
 </head>
 <body>
   <h1>📍今いる場所の最寄り駅</h1>
   <div id="station">取得中...</div>
+
+  <!-- ✅ ここに案内文を追加 -->
+  <div class="info">
+    ※現在地を更新したい場合は、画面を下にフリック（引っ張って更新）してください。
+  </div>
 
   <script src="stations.js"></script>
   <script src="main.js"></script>
