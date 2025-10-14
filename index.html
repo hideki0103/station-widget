@@ -1,125 +1,201 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>最寄り駅チェッカー</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nearest Station Debug (Temporary)</title>
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin: 5vh 5vw;
-    }
-
-    h1 {
-      font-size: 5vw;
-    }
-
-    #station {
-      font-size: 5vw;
-      margin-top: 5vh;
-      white-space: pre-line;
-    }
-
-    button {
-      margin-top: 4vh;
-      padding: 1em 2em;
-      font-size: 4vw;
-    }
-
-    .info {
-      margin-top: 2vh;
-      font-size: 3.5vw;
-      color: #555;
-    }
-
-    @media (min-width: 768px) {
-      h1 { font-size: 2em; }
-      #station { font-size: 2em; }
-      button { font-size: 1em; }
-      .info { font-size: 0.9em; }
-    }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",sans-serif;margin:20px;background:#f6f7fb;color:#111}
+    .card{border:1px solid #e2e6ef;padding:12px;border-radius:8px;margin-bottom:12px;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,0.03)}
+    label{display:block;margin-top:8px;font-weight:600}
+    input[type="text"]{width:160px;padding:6px;margin-right:8px;border:1px solid #d0d6e6;border-radius:6px}
+    button{padding:8px 12px;margin-right:8px;border-radius:6px;border:1px solid #c7d0ea;background:#2f63ff;color:#fff;cursor:pointer}
+    button.secondary{background:#fff;color:#2f63ff;border:1px solid #c7d0ea}
+    ol{padding-left:18px;margin-top:8px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f7f7fb;padding:6px;border-radius:4px;display:inline-block}
+    #debugToolbar{position:fixed;right:16px;bottom:16px}
+    #restoreBtn{background:#e6e6e6;color:#222;border:1px solid #ccc}
   </style>
 </head>
 <body>
-  <h1>📍今いる場所の最寄り駅</h1>
-  <div id="station">取得中...</div>
+  <h3>Nearest Station Debug (Temporary)</h3>
 
-  <button onclick="getNearestStation()">もう一度調べる</button>
+  <div id="debugUI">
+    <div class="card">
+      <div>
+        <strong>データ読み込み</strong>
+        <label>
+          stations.js バージョン（キャッシュ回避）
+          <input id="ver" type="text" placeholder="例: debug1" />
+          <button id="loadBtn">stations.js を読み込む</button>
+        </label>
+        <div id="loadStatus" class="mono" style="margin-top:8px">stations.js を読み込んでください</div>
+      </div>
+    </div>
 
-  <div class="info">
-    ※現在地を更新したい場合は、上のボタンを押してください。
+    <div class="card">
+      <strong>位置取得 / 手動入力</strong>
+      <div>
+        <label>現在地を自動取得（利用可能なら）
+          <button id="geoBtn" class="secondary">Geolocation で取得</button>
+        </label>
+        <label>または手動で入力</label>
+        <input id="lat" type="text" placeholder="緯度 例: 35.52231" />
+        <input id="lon" type="text" placeholder="経度 例: 139.69254" />
+        <button id="applyBtn">この座標で再計算</button>
+      </div>
+      <p id="curInfo" class="mono" style="margin-top:8px">現在地: 未設定</p>
+    </div>
+
+    <div class="card">
+      <strong>判定結果</strong>
+      <div id="result">最寄り情報がここに表示されます</div>
+    </div>
+
+    <div class="card">
+      <strong>デバッグ操作</strong>
+      <div style="margin-top:8px">
+        <button id="recalcBtn" class="secondary">もう一度調べる</button>
+        <button id="showStationsBtn" class="secondary">stations 上位表示</button>
+        <button id="hideDebugBtn" class="secondary">デバッグUI を非表示（元に戻す）</button>
+        <div id="stationsDump" style="margin-top:8px"></div>
+      </div>
+    </div>
   </div>
 
-  <script src="stations.js"></script>
-  <script src="stations.js"></script>
-<script>
-  // 正確な距離計算（ハーヴァーシン）
-  function toRad(deg){ return deg * Math.PI / 180; }
-  function haversine(lat1, lon1, lat2, lon2){
-    const R = 6371000;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
+  <div id="productionNotice" style="display:none" class="card">
+    <strong>デバッグを終了しました</strong>
+    <p>デバッグUIは非表示になっています。元に戻すには右下の「デバッグを再表示」ボタンを押してください。</p>
+  </div>
 
-  // UI 要素を追加
-  const root = document.getElementById("station") || (() => {
-    const el = document.createElement("div");
-    el.id = "station";
-    document.body.appendChild(el);
-    return el;
-  })();
+  <div id="debugToolbar">
+    <button id="restoreBtn">デバッグを再表示</button>
+  </div>
 
-  function fmt(n){ return n.toFixed(5); }
-
-  function showDebug(lat, lon, list){
-    const nearest = list[0];
-    let html = `<strong>現在地</strong><br>緯度 ${fmt(lat)}, 経度 ${fmt(lon)}<br><br>`;
-    html += `<strong>最寄り（判定）</strong><br>${nearest.name}（約${nearest.d}m）<br><br>`;
-    html += `<strong>上位10駅（距離順）</strong><br><ol>`;
-    for(let i=0;i<Math.min(10,list.length);i++){
-      const s = list[i];
-      html += `<li>${s.name} — ${s.d}m — (${s.lat.toFixed(5)}, ${s.lon.toFixed(5)})</li>`;
+  <script>
+    // ハーヴァーシン（メートル）
+    function toRad(d){ return d * Math.PI / 180; }
+    function hav(lat1, lon1, lat2, lon2){
+      const R = 6371000;
+      const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
-    html += `</ol>`;
-    root.innerHTML = html;
-  }
 
-  // デバッグ用に強制的に再取得・一覧表示する関数
-  function debugNearest(){
-    if(!navigator.geolocation){
-      root.textContent = "位置情報が使えません";
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(pos=>{
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      // 各駅の距離を数値化してソート
+    // UI 要素
+    const loadBtn = document.getElementById('loadBtn');
+    const loadStatus = document.getElementById('loadStatus');
+    const verInput = document.getElementById('ver');
+    const geoBtn = document.getElementById('geoBtn');
+    const applyBtn = document.getElementById('applyBtn');
+    const latInput = document.getElementById('lat');
+    const lonInput = document.getElementById('lon');
+    const curInfo = document.getElementById('curInfo');
+    const result = document.getElementById('result');
+    const recalcBtn = document.getElementById('recalcBtn');
+    const showStationsBtn = document.getElementById('showStationsBtn');
+    const stationsDump = document.getElementById('stationsDump');
+    const hideDebugBtn = document.getElementById('hideDebugBtn');
+    const restoreBtn = document.getElementById('restoreBtn');
+    const debugUI = document.getElementById('debugUI');
+    const productionNotice = document.getElementById('productionNotice');
+
+    // stations を後から読み込むための参照
+    let stations = window.stations || null;
+
+    function renderListFrom(lat, lon){
+      if(!stations || !Array.isArray(stations)){ result.innerHTML = '<em>stations が読み込まれていません</em>'; return; }
+      const curLat = Number(lat), curLon = Number(lon);
+      if(!isFinite(curLat) || !isFinite(curLon)){ result.innerHTML = '<em>有効な座標を入力してください</em>'; return; }
       const list = stations.map(s=>{
-        const sLat = Number(s.lat);
-        const sLon = Number(s.lon);
-        const d = Math.round(haversine(lat, lon, sLat, sLon));
-        return { name: s.name, lat: sLat, lon: sLon, d };
+        const sLat = Number(s.lat), sLon = Number(s.lon);
+        const d = Math.round(hav(curLat, curLon, sLat, sLon));
+        return { name:s.name, lat:sLat, lon:sLon, d };
       }).sort((a,b)=>a.d-b.d);
-      showDebug(lat, lon, list);
-    }, err=>{
-      root.textContent = "位置情報取得失敗: " + (err.message || err.code);
-    }, { enableHighAccuracy:true, maximumAge:0, timeout:10000 });
-  }
 
-  // ページに「再取得」ボタンを追加
-  (function init(){
-    const btn = document.createElement("button");
-    btn.textContent = "デバッグで再取得";
-    btn.style.fontSize = "16px";
-    btn.onclick = debugNearest;
-    document.body.insertBefore(btn, document.body.firstChild);
-    debugNearest(); // 初回実行
-  })();
-</script>
+      const nearest = list[0];
+      let html = `<p><strong>現在地</strong> 緯度 ${curLat.toFixed(5)} 経度 ${curLon.toFixed(5)}</p>`;
+      html += `<p><strong>最寄り駅</strong> ${nearest.name} — 約 ${nearest.d}m</p>`;
+      html += '<p><strong>上位10駅</strong></p><ol>';
+      for(let i=0;i<Math.min(10,list.length);i++){
+        const s = list[i];
+        html += `<li>${s.name} — ${s.d}m — (${s.lat.toFixed(5)}, ${s.lon.toFixed(5)})</li>`;
+      }
+      html += '</ol>';
+      result.innerHTML = html;
+    }
 
+    function safeLoadStations(scriptUrl){
+      return new Promise((resolve, reject)=>{
+        const script = document.createElement('script');
+        script.src = scriptUrl;
+        script.onload = ()=>{ resolve(window.stations || null); };
+        script.onerror = ()=>{ reject(new Error('stations.js の読み込みに失敗')); };
+        document.head.appendChild(script);
+      });
+    }
+
+    loadBtn.addEventListener('click', async ()=>{
+      const ver = verInput.value.trim() || Date.now().toString();
+      const src = `stations.js?v=${encodeURIComponent(ver)}`;
+      loadStatus.textContent = '読み込み中...';
+      try{
+        const s = await safeLoadStations(src);
+        if(!s){ loadStatus.textContent = '読み込み完了。ただし stations が定義されていません'; stations = null; }
+        else { stations = s; loadStatus.textContent = `読み込み完了: stations.length = ${stations.length}`; }
+      }catch(err){
+        loadStatus.textContent = '読み込み失敗: ' + err.message;
+      }
+    });
+
+    geoBtn.addEventListener('click', ()=>{
+      if(!navigator.geolocation){ curInfo.textContent = 'Geolocation 未対応の環境です'; return; }
+      curInfo.textContent = '現在地を取得中...';
+      navigator.geolocation.getCurrentPosition(p=>{
+        const lat = p.coords.latitude, lon = p.coords.longitude;
+        latInput.value = lat.toFixed(5); lonInput.value = lon.toFixed(5);
+        curInfo.textContent = `現在地: 緯度 ${lat.toFixed(5)}, 経度 ${lon.toFixed(5)}`;
+        renderListFrom(lat, lon);
+      }, err=>{
+        curInfo.textContent = '位置情報取得失敗: ' + (err.message || err.code);
+      }, { enableHighAccuracy:true, maximumAge:0, timeout:10000 });
+    });
+
+    applyBtn.addEventListener('click', ()=>{
+      const lat = latInput.value.trim(), lon = lonInput.value.trim();
+      if(!lat || !lon){ curInfo.textContent = '緯度と経度を入力してください'; return; }
+      curInfo.textContent = `現在地: 緯度 ${Number(lat).toFixed(5)}, 経度 ${Number(lon).toFixed(5)}`;
+      renderListFrom(lat, lon);
+    });
+
+    recalcBtn.addEventListener('click', ()=>{
+      const lat = latInput.value.trim(), lon = lonInput.value.trim();
+      if(lat && lon) renderListFrom(lat, lon);
+    });
+
+    showStationsBtn.addEventListener('click', ()=>{
+      if(!stations){ stationsDump.innerText = 'stations が読み込まれていません'; return; }
+      const top = stations.slice(0,50).map((s,i)=>`${i+1}. ${s.name} — (${s.lat}, ${s.lon})`).join('\n');
+      stationsDump.innerText = top;
+    });
+
+    hideDebugBtn.addEventListener('click', ()=>{
+      debugUI.style.display = 'none';
+      productionNotice.style.display = 'block';
+    });
+
+    restoreBtn.addEventListener('click', ()=>{
+      debugUI.style.display = 'block';
+      productionNotice.style.display = 'none';
+    });
+
+    // ページロード時：既に stations がグローバルにあるか確認
+    window.addEventListener('load', ()=>{
+      if(window.stations && Array.isArray(window.stations)){
+        stations = window.stations;
+        loadStatus.textContent = `既存の stations を検出: length = ${stations.length}`;
+      }
+    });
+  </script>
 </body>
 </html>
-
