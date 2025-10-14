@@ -12,9 +12,11 @@ function getNearestStation() {
     let minDistance = Infinity;
 
     for (const station of stations) {
-      const dx = (lat - station.lat) * 111000; // 緯度差 → メートル
-      const dy = (lon - station.lon) * 91000;  // 経度差 → メートル（東京付近の係数）
-      const distance = Math.sqrt(dx * dx + dy * dy); // メートル単位の距離
+      if (!station.lat || !station.lon || !station.name) continue;
+
+      const dx = (lat - station.lat) * 111320; // 緯度 → メートル
+      const dy = (lon - station.lon) * 91300;  // 経度 → メートル（東京付近）
+      const distance = Math.sqrt(dx * dx + dy * dy);
 
       if (distance < minDistance) {
         minDistance = distance;
