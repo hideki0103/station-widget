@@ -5,26 +5,89 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Nearest Station</title>
   <style>
-    :root{--bg:#fff;--card:#fafafa;--fg:#111;--muted:#666;--accent:#2f63ff}
+    :root{
+      --bg:#fff; --card:#fafafa; --fg:#111; --muted:#666; --accent:#2f63ff;
+      --radius:14px; --gap:16px;
+    }
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;background:var(--bg);color:var(--fg);display:flex;align-items:center;justify-content:center}
-    #wrap{width:96%;max-width:680px;padding:20px;border-radius:14px;text-align:center;border:1px solid #eee;background:var(--card);box-sizing:border-box}
-    #station{font-size:1.5rem;font-weight:700;line-height:1.2;word-break:break-word}
-    #distance{margin-top:8px;font-size:1.125rem;color:var(--muted)}
-    #note{margin-top:10px;font-size:0.95rem;color:var(--muted);line-height:1.3}
-    button{display:inline-block;margin-top:14px;padding:12px 18px;border-radius:10px;border:0;background:var(--accent);color:#fff;cursor:pointer;font-weight:700;font-size:1rem}
-    @media (max-width:420px){
-      :root{font-size:17px}
-      #wrap{padding:18px;border-radius:16px}
-      #station{font-size:1.6rem}
-      #distance{font-size:1.25rem}
+    /* 横長化: 幅を広げ、左右余白を減らす */
+    #wrap{
+      width:98%;
+      max-width:900px;      /* 横を広く確保 */
+      padding:20px;
+      border-radius:var(--radius);
+      text-align:left;
+      border:1px solid #eee;
+      background:var(--card);
+      box-sizing:border-box;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    /* 駅名と距離を同一行にして段ずれ防止 */
+    #topRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      width:100%;
+      flex-wrap:nowrap;
+    }
+    #station{
+      font-size:1.5rem; /* 約24px */
+      font-weight:700;
+      line-height:1.15;
+      white-space:nowrap;       /* 改行させない */
+      overflow:hidden;
+      text-overflow:ellipsis;   /* 長い駅名は省略「…」にする */
+      max-width: calc(100% - 140px); /* 距離領域を確保 */
+    }
+    #distance{
+      font-size:1.125rem; /* 18px */
+      color:var(--muted);
+      flex:0 0 120px;     /* 固定幅で右揃え */
+      text-align:right;
+      white-space:nowrap;
+    }
+
+    #note{
+      font-size:0.95rem;
+      color:var(--muted);
+      line-height:1.3;
+      text-align:left;
+      margin-top:4px;
+    }
+
+    button{
+      align-self:flex-end;
+      margin-top:6px;
+      padding:12px 18px;
+      border-radius:10px;
+      border:0;
+      background:var(--accent);
+      color:#fff;
+      cursor:pointer;
+      font-weight:700;
+      font-size:1rem;
+    }
+
+    /* 小画面ではさらに幅を確保（左右フル幅利用） */
+    @media (max-width:480px){
+      html,body{padding:0}
+      #wrap{width:100%;max-width:100%;padding:16px;border-radius:12px}
+      #station{font-size:1.4rem; max-width: calc(100% - 120px);}
+      #distance{flex:0 0 110px}
       button{width:100%}
     }
   </style>
 </head>
 <body>
   <div id="wrap" role="main" aria-live="polite">
-    <div id="station">最寄り駅: 読み込み中…</div>
-    <div id="distance" aria-hidden="true"></div>
+    <div id="topRow">
+      <div id="station">最寄り駅: 読み込み中…</div>
+      <div id="distance" aria-hidden="true"></div>
+    </div>
     <div id="note">stations.js を同フォルダに置いてください。自動で取得・再試行します。</div>
     <button id="retry" aria-label="再読み込みして最寄り駅を判定">再読み込みして判定</button>
   </div>
@@ -44,19 +107,14 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       }
 
-      // stations を文字列で取得して安全に評価する（既存 global を壊さない）
       async function fetchAndEvalStations(token){
         const url = 'stations.js' + (token ? ('?v=' + encodeURIComponent(token)) : '');
         const res = await fetch(url, {cache: 'no-store'});
         if(!res.ok) throw new Error('stations.js の取得に失敗: ' + res.status);
         const text = await res.text();
-        // text に window.stations = [...] の形が期待されるため、eval を限定実行する
-        // 評価は IIFE 内で行い、window.stations が設定されることを前提にする
         try {
-          // 新しい関数スコープで評価（global を汚染しないが window.stations を設定する）
           const fn = new Function('window', text + '\nreturn typeof window.stations !== "undefined" ? window.stations : null;');
-          const result = fn(window);
-          return result;
+          return fn(window);
         } catch(e){
           throw new Error('stations.js の評価に失敗: ' + e.message);
         }
@@ -77,15 +135,14 @@
           if(!best || d < best.d) best = { name: s.name, d: Math.round(d) };
         }
         if(best){
-          elStation.textContent = `最寄り駅: ${best.name}`;
-          elDistance.textContent = `距離: 約 ${best.d} m`;
+          elStation.textContent = `${best.name}`;
+          elDistance.textContent = `約 ${best.d} m`;
         } else {
           elStation.textContent = '最寄り判定に失敗しました';
           elDistance.textContent = '';
         }
       }
 
-      // シーケンス: stations を取得・評価 → 位置取得 → 判定
       let inProgress = false;
       async function runOnce(force){
         if(inProgress) return;
@@ -93,15 +150,11 @@
         elStation.textContent = 'データを取得中…';
         elDistance.textContent = '';
         let loaded = false;
-        // 3回トライ。force が true なら毎回トークンを付ける
         for(let i=0;i<3;i++){
           try {
             const token = force ? Date.now() : (i === 0 ? '' : Date.now());
             const s = await fetchAndEvalStations(token);
-            if(s && Array.isArray(s) && s.length > 0){
-              loaded = true;
-              break;
-            }
+            if(s && Array.isArray(s) && s.length > 0){ loaded = true; break; }
           } catch(e){
             elNote.textContent = '読み込み試行中: ' + e.message;
           }
@@ -109,7 +162,6 @@
         }
 
         if(!loaded){
-          // フォールバックは「読み込みできなかった」状態を明確表示する（自動でデータを注入しない）
           elStation.textContent = 'stations.js が読み込めません';
           elDistance.textContent = '';
           elNote.textContent = 'stations.js を同フォルダに配置し、ファイル名が小文字 exactly stations.js であることを確認してください。';
@@ -117,7 +169,6 @@
           return;
         }
 
-        // 位置取得
         if(navigator.geolocation){
           elStation.textContent = '現在地を取得中…';
           navigator.geolocation.getCurrentPosition(p=>{
@@ -131,29 +182,18 @@
             inProgress = false;
           }, { enableHighAccuracy: true, maximumAge:0, timeout:10000 });
         } else {
-          // Geolocation 非対応：URL クエリで座標を受け取る仕様
           elStation.textContent = '位置情報未対応';
           elDistance.textContent = '';
           const p = new URLSearchParams(location.search);
           const qlat = p.get('lat'), qlon = p.get('lon');
-          if(qlat && qlon){
-            showNearestByCoords(Number(qlat), Number(qlon));
-            elNote.textContent = '';
-          } else {
-            elNote.textContent = '手動で試すには URL に ?lat=緯度&lon=経度 を付けてください。';
-          }
+          if(qlat && qlon){ showNearestByCoords(Number(qlat), Number(qlon)); elNote.textContent = ''; }
+          else { elNote.textContent = '手動で試すには URL に ?lat=緯度&lon=経度 を付けてください。'; }
           inProgress = false;
         }
       }
 
-      btn.addEventListener('click', ()=>{
-        runOnce(true); // 強制トークンで再読み込み
-      });
-
-      // 自動実行
+      btn.addEventListener('click', ()=>{ runOnce(true); });
       runOnce(false);
-
-      // 外部から呼べる（ただしコンソールは使わない約束なので通常不要）
       window._showNearest = function(lat,lon){ showNearestByCoords(lat,lon); };
     })();
   </script>
