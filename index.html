@@ -5,25 +5,97 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Nearest Station</title>
   <style>
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;background:#fff;color:#111;display:flex;align-items:center;justify-content:center}
-    #wrap{width:92%;max-width:520px;padding:18px;border-radius:10px;text-align:center;border:1px solid #eee;background:#fafafa}
-    #station{font-size:20px;font-weight:700}
-    #distance{margin-top:8px;font-size:16px;color:#555}
-    #note{margin-top:10px;font-size:12px;color:#888}
-    button{margin-top:12px;padding:8px 12px;border-radius:8px;border:1px solid #d0d6e6;background:#2f63ff;color:#fff;cursor:pointer}
+    :root{
+      --bg:#ffffff;
+      --card:#fafafa;
+      --fg:#111;
+      --muted:#666;
+      --accent:#2f63ff;
+      --radius:12px;
+      --gap:14px;
+      font-size:16px; /* 基本フォント、rem基準 */
+    }
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;background:var(--bg);color:var(--fg);display:flex;align-items:center;justify-content:center}
+    /* コンテナ */
+    #wrap{
+      width:96%;
+      max-width:680px;
+      padding:calc(var(--gap) * 1.2);
+      border-radius:var(--radius);
+      text-align:center;
+      border:1px solid #eee;
+      background:var(--card);
+      box-shadow:0 1px 2px rgba(0,0,0,.03);
+      box-sizing:border-box;
+    }
+
+    /* 見出し（最寄り駅） */
+    #station{
+      font-size:1.375rem; /* 22px */
+      font-weight:700;
+      line-height:1.2;
+      margin-bottom:0.4rem;
+      word-break:break-word;
+    }
+
+    /* 距離 */
+    #distance{
+      margin-top:0.5rem;
+      font-size:1.125rem; /* 18px */
+      color:var(--muted);
+    }
+
+    /* 補助説明 */
+    #note{
+      margin-top:0.9rem;
+      font-size:0.95rem; /* ~15px */
+      color:var(--muted);
+      line-height:1.3;
+    }
+
+    /* ボタン（タップ領域を大きく） */
+    button{
+      display:inline-block;
+      margin-top:1rem;
+      padding:12px 18px;
+      border-radius:10px;
+      border:1px solid rgba(0,0,0,0.08);
+      background:var(--accent);
+      color:#fff;
+      cursor:pointer;
+      font-weight:700;
+      font-size:1rem;
+      -webkit-tap-highlight-color: rgba(0,0,0,0.05);
+    }
+    button:active{ transform:translateY(1px); }
+
+    /* 小さめデバイス向けの追加調整 */
+    @media (max-width:420px){
+      :root{ font-size:17px; } /* 全体を少し拡大 */
+      #wrap{ padding:18px; border-radius:14px; }
+      #station{ font-size:1.5rem; } /* 約24px */
+      #distance{ font-size:1.25rem; } /* 約20px */
+      button{ width:100%; padding:14px 16px; font-size:1.05rem; }
+      #note{ font-size:1rem; text-align:center; }
+    }
+
+    /* 高コントラスト・大文字でも崩れないように */
+    @media (prefers-contrast: more){
+      #wrap{ border-color:#ccc; }
+      button{ background:#0033cc; }
+    }
   </style>
 </head>
 <body>
   <div id="wrap" role="main" aria-live="polite">
     <div id="station">最寄り駅: 読み込み中…</div>
-    <div id="distance"></div>
+    <div id="distance" aria-hidden="true"></div>
     <div id="note">stations.js を同フォルダに置いてください。自動で読み込み・再試行します。</div>
-    <button id="retry">再読み込みして判定</button>
+    <button id="retry" aria-label="再読み込みして最寄り駅を判定">再読み込みして判定</button>
   </div>
 
   <script>
     (function(){
-      // ハーヴァーシン（メートル）
       function toRad(d){ return d * Math.PI / 180; }
       function hav(lat1, lon1, lat2, lon2){
         const R = 6371000;
@@ -37,10 +109,8 @@
       const elNote = document.getElementById('note');
       const btn = document.getElementById('retry');
 
-      // stations.js を確実に読み込むための関数
       function dynamicLoadStations(query){
         return new Promise((resolve,reject)=>{
-          // 既に定義されている場合はそれを返す
           if(window.stations && Array.isArray(window.stations)){
             return resolve(window.stations);
           }
@@ -52,7 +122,6 @@
         });
       }
 
-      // 最寄り判定（stations が存在する前提）
       function showNearestByCoords(lat, lon){
         if(!window.stations || !Array.isArray(window.stations) || window.stations.length === 0){
           elStation.textContent = 'データが見つかりません';
@@ -76,23 +145,18 @@
         }
       }
 
-      // 起動シーケンス: stations 読み込み→位置取得→表示
       async function runOnce(forceQuery){
         elStation.textContent = 'データ読み込み中…';
         elDistance.textContent = '';
-        // 3回まで試行する
         let stationsLoaded = null;
         for(let i=0;i<3;i++){
           try {
             stationsLoaded = await dynamicLoadStations(forceQuery ? (Date.now()) : (i===0 ? '' : Date.now()));
             if(stationsLoaded && Array.isArray(stationsLoaded) && stationsLoaded.length>0) break;
-          } catch(e) {
-            // 続行してリトライ
-          }
-          await new Promise(r => setTimeout(r, 300)); // 小休止
+          } catch(e) {}
+          await new Promise(r => setTimeout(r, 300));
         }
         if(!stationsLoaded || !Array.isArray(stationsLoaded) || stationsLoaded.length===0){
-          // フォールバック: 既にページに stations がなければ一時的な最小配列を定義してお知らせ
           if(!window.stations || !Array.isArray(window.stations) || window.stations.length===0){
             window.stations = [
               { name: "八丁畷", lat: 35.52311, lon: 139.69150 },
@@ -106,43 +170,9 @@
           elNote.textContent = '';
         }
 
-        // 位置取得を試みる（許可がなければ手動で console から showNearest を呼べるが
-        // ユーザ要求でコンソールは使わせないため、Geolocation が不可なら固定メッセを出す）
         if(navigator.geolocation){
           elStation.textContent = '現在地を取得中…';
           navigator.geolocation.getCurrentPosition(p=>{
             showNearestByCoords(p.coords.latitude, p.coords.longitude);
           }, err=>{
-            elStation.textContent = '位置情報が取得できません';
-            elDistance.textContent = '';
-            elNote.textContent += ' 端末の位置情報許可を確認してください。';
-          }, { enableHighAccuracy: true, maximumAge:0, timeout:10000 });
-        } else {
-          elStation.textContent = '位置情報に未対応の環境です';
-          elDistance.textContent = '';
-          elNote.textContent += ' 手動で位置を渡す場合は URL に ?lat=緯度&lon=経度 を付けてください。';
-          // URL クエリに座標があれば自動で判定
-          const p = new URLSearchParams(location.search);
-          const qlat = p.get('lat'), qlon = p.get('lon');
-          if(qlat && qlon){
-            showNearestByCoords(Number(qlat), Number(qlon));
-          }
-        }
-      }
-
-      // ボタンで強制再読み込み＋キャッシュ回避トークン
-      btn.addEventListener('click', ()=>{
-        try{ delete window.stations; }catch(e){}
-        runOnce(true);
-      });
-
-      // 自動起動
-      runOnce(false);
-
-      // デバッグ要求の代替としてコンソールを使わずに外部から呼べる関数を公開
-      window._showNearest = function(lat,lon){ showNearestByCoords(lat,lon); };
-    })();
-  </script>
-</body>
-</html>
-
+            elStation.textContent
