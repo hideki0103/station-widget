@@ -1,4 +1,4 @@
-const stations = [
+window.stations = [
   // 京急本線（品川〜横浜）
   { name: "品川", lat: 35.62847, lon: 139.73875 },
   { name: "北品川", lat: 35.62607, lon: 139.74066 },
@@ -93,3 +93,4 @@ const stations = [
   { name: "西千葉", lat: 35.62027, lon: 140.10611 },
   { name: "千葉", lat: 35.61305, lon: 140.11472 }
 ];
+
