@@ -7,65 +7,54 @@
   <style>
     :root{
       --bg:#fff; --card:#fafafa; --fg:#111; --muted:#666; --accent:#2f63ff;
-      --radius:14px; --gap:16px;
+      --radius:14px; --gap:12px;
     }
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;background:var(--bg);color:var(--fg);display:flex;align-items:center;justify-content:center}
     #wrap{
-      width:98%;
-      max-width:900px;
+      width:96%;
+      max-width:760px;
       padding:20px;
       border-radius:var(--radius);
-      text-align:left;
+      text-align:center;
       border:1px solid #eee;
       background:var(--card);
       box-sizing:border-box;
       display:flex;
       flex-direction:column;
-      gap:12px;
-    }
-
-    /* topRow: 駅名は伸縮（flex:1）、距離は固定幅 */
-    #topRow{
-      display:flex;
+      gap:10px;
       align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      width:100%;
-      flex-wrap:nowrap;
-    }
-    /* 駅名: 可変幅にして省略は行末のみ、改行も許容（幅が足りなければ折返し） */
-    #station{
-      font-size:1.5rem;
-      font-weight:700;
-      line-height:1.15;
-      white-space:normal;           /* 折返しを許可 */
-      overflow:visible;             /* 切れを抑える */
-      text-overflow:clip;
-      flex:1 1 auto;                /* 可変領域 */
-      min-width:0;                  /* flex 子で省略が効くように必須 */
-      margin-right:10px;
-      word-break:break-word;
-    }
-    /* 距離: 右端に固定（表示が崩れないように幅を確保） */
-    #distance{
-      font-size:1.125rem;
-      color:var(--muted);
-      flex:0 0 120px;
-      text-align:right;
-      white-space:nowrap;
     }
 
+    /* 駅名は上中央に大きく */
+    #station{
+      font-size:2.0rem;   /* デスクトップで約32px */
+      font-weight:800;
+      line-height:1.05;
+      text-align:center;
+      word-break:break-word;
+      margin:0;
+      padding:0 6px;
+    }
+
+    /* 距離は駅名の下に小さく表示 */
+    #distance{
+      margin-top:6px;
+      font-size:1.05rem;  /* 約17px */
+      color:var(--muted);
+      text-align:center;
+    }
+
+    /* 補助説明は小さめで下部に */
     #note{
+      margin-top:8px;
       font-size:0.95rem;
       color:var(--muted);
-      line-height:1.3;
-      text-align:left;
-      margin-top:4px;
+      text-align:center;
     }
 
+    /* ボタンは下に表示 */
     button{
-      align-self:flex-end;
-      margin-top:6px;
+      margin-top:12px;
       padding:12px 18px;
       border-radius:10px;
       border:0;
@@ -74,23 +63,28 @@
       cursor:pointer;
       font-weight:700;
       font-size:1rem;
+      width:100%;
+      max-width:260px;
     }
 
-    @media (max-width:480px){
-      html,body{padding:0}
-      #wrap{width:100%;max-width:100%;padding:16px;border-radius:12px}
-      #station{font-size:1.4rem}
-      #distance{flex:0 0 110px}
-      button{width:100%}
+    @media (max-width:420px){
+      :root{ font-size:17px; }
+      #wrap{ padding:18px; max-width:100%; width:100%; }
+      #station{ font-size:2.2rem; } /* スマホでさらに大きめ表示 */
+      #distance{ font-size:1.15rem; }
+      button{ max-width:100%; width:100%; }
+    }
+
+    @media (prefers-contrast: more){
+      #wrap{ border-color:#ccc; }
+      button{ background:#0033cc; }
     }
   </style>
 </head>
 <body>
   <div id="wrap" role="main" aria-live="polite">
-    <div id="topRow">
-      <div id="station">最寄り駅: 読み込み中…</div>
-      <div id="distance" aria-hidden="true"></div>
-    </div>
+    <div id="station">最寄り駅: 読み込み中…</div>
+    <div id="distance" aria-hidden="true"></div>
     <div id="note">stations.js を同フォルダに置いてください。自動で取得・再試行します。</div>
     <button id="retry" aria-label="再読み込みして最寄り駅を判定">再読み込みして判定</button>
   </div>
@@ -138,7 +132,7 @@
           if(!best || d < best.d) best = { name: s.name, d: Math.round(d) };
         }
         if(best){
-          elStation.textContent = `${best.name}`;
+          elStation.textContent = best.name;
           elDistance.textContent = `約 ${best.d} m`;
         } else {
           elStation.textContent = '最寄り判定に失敗しました';
