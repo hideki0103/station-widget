@@ -10,10 +10,9 @@
       --radius:14px; --gap:16px;
     }
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;background:var(--bg);color:var(--fg);display:flex;align-items:center;justify-content:center}
-    /* 横長化: 幅を広げ、左右余白を減らす */
     #wrap{
       width:98%;
-      max-width:900px;      /* 横を広く確保 */
+      max-width:900px;
       padding:20px;
       border-radius:var(--radius);
       text-align:left;
@@ -25,7 +24,7 @@
       gap:12px;
     }
 
-    /* 駅名と距離を同一行にして段ずれ防止 */
+    /* topRow: 駅名は伸縮（flex:1）、距離は固定幅 */
     #topRow{
       display:flex;
       align-items:center;
@@ -34,19 +33,24 @@
       width:100%;
       flex-wrap:nowrap;
     }
+    /* 駅名: 可変幅にして省略は行末のみ、改行も許容（幅が足りなければ折返し） */
     #station{
-      font-size:1.5rem; /* 約24px */
+      font-size:1.5rem;
       font-weight:700;
       line-height:1.15;
-      white-space:nowrap;       /* 改行させない */
-      overflow:hidden;
-      text-overflow:ellipsis;   /* 長い駅名は省略「…」にする */
-      max-width: calc(100% - 140px); /* 距離領域を確保 */
+      white-space:normal;           /* 折返しを許可 */
+      overflow:visible;             /* 切れを抑える */
+      text-overflow:clip;
+      flex:1 1 auto;                /* 可変領域 */
+      min-width:0;                  /* flex 子で省略が効くように必須 */
+      margin-right:10px;
+      word-break:break-word;
     }
+    /* 距離: 右端に固定（表示が崩れないように幅を確保） */
     #distance{
-      font-size:1.125rem; /* 18px */
+      font-size:1.125rem;
       color:var(--muted);
-      flex:0 0 120px;     /* 固定幅で右揃え */
+      flex:0 0 120px;
       text-align:right;
       white-space:nowrap;
     }
@@ -72,11 +76,10 @@
       font-size:1rem;
     }
 
-    /* 小画面ではさらに幅を確保（左右フル幅利用） */
     @media (max-width:480px){
       html,body{padding:0}
       #wrap{width:100%;max-width:100%;padding:16px;border-radius:12px}
-      #station{font-size:1.4rem; max-width: calc(100% - 120px);}
+      #station{font-size:1.4rem}
       #distance{flex:0 0 110px}
       button{width:100%}
     }
