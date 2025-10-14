@@ -16,8 +16,9 @@
     }
 
     #station {
-      font-size: 6vw;
+      font-size: 5vw;
       margin-top: 5vh;
+      white-space: pre-line;
     }
 
     button {
@@ -33,7 +34,6 @@
     }
 
     @media (min-width: 768px) {
-      /* タブレット・PC向け調整 */
       h1 { font-size: 2em; }
       #station { font-size: 2em; }
       button { font-size: 1em; }
@@ -67,8 +67,8 @@
         let minDistance = Infinity;
 
         for (const station of stations) {
-          const dx = lat - station.lat;
-          const dy = lon - station.lon;
+          const dx = (lat - station.lat) * 111000;
+          const dy = (lon - station.lon) * 91000;
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           if (distance < minDistance) {
@@ -77,7 +77,15 @@
           }
         }
 
-        document.getElementById("station").textContent = `最寄り駅：${nearest.name}`;
+        if (nearest) {
+          const rounded = Math.round(minDistance);
+          const latFixed = lat.toFixed(5);
+          const lonFixed = lon.toFixed(5);
+          document.getElementById("station").textContent =
+            `最寄り駅：${nearest.name}（約${rounded}m）\n現在地：緯度 ${latFixed}, 経度 ${lonFixed}`;
+        } else {
+          document.getElementById("station").textContent = "最寄り駅が見つかりません。";
+        }
       }, () => {
         document.getElementById("station").textContent = "位置情報の取得に失敗しました。";
       });
