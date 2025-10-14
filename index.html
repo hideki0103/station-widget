@@ -5,23 +5,30 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Nearest Station</title>
   <style>
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;display:flex;align-items:center;justify-content:center;background:#ffffff;color:#111}
-    #wrap{max-width:520px;width:90%;text-align:center;padding:20px;border-radius:8px}
+    :root{--bg:#fff;--fg:#111;--muted:#666}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;background:var(--bg);color:var(--fg);display:flex;align-items:center;justify-content:center}
+    #wrap{width:94%;max-width:520px;padding:18px;border-radius:10px;text-align:center;border:1px solid #eee;background:#fafafa;box-shadow:0 1px 2px rgba(0,0,0,.03)}
     #station{font-size:20px;font-weight:700}
-    #distance{margin-top:8px;font-size:16px;color:#444}
-    .small{font-size:12px;color:#888;margin-top:10px}
+    #distance{margin-top:8px;font-size:16px;color:var(--muted)}
+    #verRow{margin-top:12px;font-size:12px;color:var(--muted)}
+    #mini{margin-top:10px;font-size:12px;color:var(--muted)}
+    button{margin-left:8px;padding:6px 10px;border-radius:6px;border:1px solid #d0d6e6;background:#2f63ff;color:#fff;font-weight:600}
   </style>
 </head>
 <body>
-  <div id="wrap">
+  <div id="wrap" role="main" aria-live="polite">
     <div id="station">最寄り駅: 読み込み中…</div>
     <div id="distance"></div>
-    <div class="small" id="debug" aria-hidden="true"></div>
+    <div id="mini" aria-hidden="true"></div>
+    <div id="verRow">
+      <label for="ver">stations.js 読み直し（キャッシュ回避）:</label>
+      <input id="ver" type="text" placeholder="例: debug1" style="padding:6px;border:1px solid #ddd;border-radius:6px;width:160px" />
+      <button id="reloadBtn">再読み込みして判定</button>
+    </div>
   </div>
 
   <script>
-    // 最小ページ：stations.js を同じディレクトリに配置して読み込む想定
-    // キャッシュ対策が必要なら URL に ?v= を付けて読み込んでください
+    // main.js を内包した最小実装（stations.js を同ディレクトリに維持）
     (function(){
       // ハーヴァーシン（メートル）
       function toRad(d){ return d * Math.PI / 180; }
@@ -32,25 +39,34 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       }
 
-      // UI
       const elStation = document.getElementById('station');
       const elDistance = document.getElementById('distance');
-      const elDebug = document.getElementById('debug');
+      const elMini = document.getElementById('mini');
+      const verInput = document.getElementById('ver');
+      const reloadBtn = document.getElementById('reloadBtn');
 
-      // 読み込み済みの stations がなければ動的読み込みを試みる
-      function loadStations(src){
+      // stations を動的に読み込む（既にグローバルにあれば再利用）
+      function loadStations(ver){
         return new Promise((resolve,reject)=>{
-          if(window.stations && Array.isArray(window.stations)) return resolve(window.stations);
+          if(window.stations && Array.isArray(window.stations)){
+            resolve(window.stations);
+            return;
+          }
           const s = document.createElement('script');
-          s.src = src || 'stations.js';
-          s.onload = ()=>resolve(window.stations || null);
-          s.onerror = ()=>reject(new Error('stations.js load failed'));
+          s.src = 'stations.js' + (ver ? ('?v=' + encodeURIComponent(ver)) : '');
+          s.onload = ()=> resolve(window.stations || null);
+          s.onerror = ()=> reject(new Error('stations.js の読み込みに失敗しました'));
           document.head.appendChild(s);
         });
       }
 
+      // 最寄り判定
       function showNearest(lat, lon){
-        if(!window.stations || !Array.isArray(window.stations)){ elStation.textContent = 'データが見つかりません'; return; }
+        if(!window.stations || !Array.isArray(window.stations) || window.stations.length === 0){
+          elStation.textContent = 'データが見つかりません';
+          elDistance.textContent = '';
+          return;
+        }
         const curLat = Number(lat), curLon = Number(lon);
         let best = null;
         for(const st of window.stations){
@@ -62,40 +78,53 @@
         if(best){
           elStation.textContent = `最寄り駅: ${best.name}`;
           elDistance.textContent = `距離: 約 ${best.d} m`;
+          elMini.textContent = `(${curLat.toFixed(5)}, ${curLon.toFixed(5)})`;
         } else {
-          elStation.textContent = '最寄り駅が判定できません';
-        }
-      }
-
-      // 位置取得と結果表示
-      function determine(){
-        if(navigator.geolocation){
-          navigator.geolocation.getCurrentPosition(p=>{
-            const lat = p.coords.latitude, lon = p.coords.longitude;
-            showNearest(lat, lon);
-            elDebug.textContent = `(${lat.toFixed(5)}, ${lon.toFixed(5)})`;
-          }, err=>{
-            elStation.textContent = '位置情報取得不可';
-            elDistance.textContent = '';
-            elDebug.textContent = err && err.message ? err.message : '位置情報エラー';
-          }, { enableHighAccuracy:true, maximumAge:0, timeout:10000 });
-        } else {
-          elStation.textContent = '位置情報未対応';
+          elStation.textContent = '最寄り判定に失敗しました';
           elDistance.textContent = '';
+          elMini.textContent = '';
         }
       }
 
-      // 起動シーケンス：stations を読み込み → 位置判定
-      loadStations().then(s=>{
-        if(!s) elDebug.textContent = 'stations が未定義です';
-        determine();
-      }).catch(e=>{
-        elStation.textContent = 'データ読み込み失敗';
-        elDebug.textContent = e.message || 'stations.js 読み込み失敗';
+      // 位置取得 → 表示の流れ
+      function determineNow(){
+        loadStations(verInput.value.trim()).then(s=>{
+          if(!s){ elStation.textContent = 'stations が未定義です'; return; }
+          if(navigator.geolocation){
+            navigator.geolocation.getCurrentPosition(p=>{
+              showNearest(p.coords.latitude, p.coords.longitude);
+            }, err=>{
+              elStation.textContent = '位置情報取得不可';
+              elDistance.textContent = '';
+              elMini.textContent = err && err.message ? err.message : '位置情報エラー';
+            }, { enableHighAccuracy:true, maximumAge:0, timeout:10000 });
+          } else {
+            elStation.textContent = '位置情報に対応していません';
+            elDistance.textContent = '';
+            elMini.textContent = '手動で ?v=付き URL を使うか、showNearest(lat,lon) をコンソールから呼んでください';
+            // window.showNearest はデバッグ向けに公開
+            window.showNearest = showNearest;
+          }
+        }).catch(e=>{
+          elStation.textContent = 'データ読み込み失敗';
+          elDistance.textContent = '';
+          elMini.textContent = e.message || 'stations.js を確認してください';
+        });
+      }
+
+      // ボタンで再読み込み＋再判定
+      reloadBtn.addEventListener('click', ()=>{
+        // 強制的に既存の window.stations を破棄して再読み込みさせる
+        try{ delete window.stations; }catch(e){}
+        // 既に追加された stations.js スクリプトが存在する場合、クエリ付きで新たに追加される
+        determineNow();
       });
 
-      // もし手動でテストしたい場合はコンソールから showNearest(lat,lon) を呼べます
-      window.showNearest = showNearest;
+      // 初回実行
+      determineNow();
+
+      // export for debugging in console if needed
+      window._nearestUI = { showNearest };
     })();
   </script>
 </body>
