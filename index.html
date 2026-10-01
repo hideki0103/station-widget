@@ -90,6 +90,9 @@ body {
   white-space: nowrap;
 }
 .row:last-of-type { border-bottom: none; }
+.row > span { perspective: 300px; }
+.flap { display: inline-block; transform-origin: 50% 55%; backface-visibility: hidden; will-change: transform; }
+.row .wide { grid-column: 2 / -1; color: var(--led-amber); }
 .order { font-size: .62em; color: var(--led-amber); }
 .type { text-align: center; }
 .time { color: var(--led-amber); }
@@ -99,7 +102,7 @@ body {
   grid-column: 1 / -1; font-size: .56em; color: var(--led-amber);
   line-height: 1.2; padding: 0 0 6px 7.2em; margin-top: -.75em;
 }
-.note:empty { display: none; }
+.note.empty { display: none; }
 .t-apk { color: var(--led-orange); }
 .t-kt  { color: var(--led-green); }
 .t-tk  { color: var(--led-red); }
@@ -125,11 +128,12 @@ body {
 .clock { font-family: "DotGothic16", monospace; font-size: 20px; color: #fff; background: #000; padding: 2px 8px; border-radius: 2px; }
 
 .stgroups {
-  margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px 8px; justify-content: center;
+  margin-top: 20px; display: flex; flex-wrap: nowrap; gap: clamp(3px, 1.2vw, 8px); justify-content: center;
   width: 100%; max-width: 760px;
 }
-.stgroup { display: flex; flex-direction: column; gap: 6px; min-width: 92px; flex: 1 1 92px; max-width: 120px; }
-.stgroup .stname { font-size: 13px; font-weight: 700; text-align: center; padding-bottom: 2px; border-bottom: 3px solid var(--line-red); }
+.stgroup { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1 1 0; max-width: 120px; }
+.stgroup .stname { font-size: clamp(10px, 3.2vw, 13px); white-space: nowrap; letter-spacing: -0.02em; font-weight: 700; text-align: center; padding-bottom: 2px; border-bottom: 3px solid var(--line-red); }
+.stgroup button { padding: 8px 0 !important; font-size: clamp(12px, 3.4vw, 14px) !important; white-space: nowrap; }
 .stgroup button, .controls button {
   font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 4px; cursor: pointer;
   background: transparent; color: var(--wall-ink); border: 1px solid currentColor;
@@ -1014,6 +1018,91 @@ function updateCaption() {
   if (c.textContent !== cap) c.textContent = cap;
 }
 
+// ===== パタパタ（反転フラップ）表示 =====
+const REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const CELLS = ["order", "type", "time", "dest", "note"];
+const boardRows = [];
+function buildBoard() {
+  for (let i = 0; i < 3; i++) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const cells = {};
+    for (const c of CELLS) {
+      const el = document.createElement("span");
+      el.className = c;
+      const f = document.createElement("span");
+      f.className = "flap";
+      f.textContent = "\u00a0";
+      el.appendChild(f);
+      el.dataset.v = "";
+      if (c === "note") el.classList.add("empty");
+      row.appendChild(el);
+      cells[c] = el;
+    }
+    rowsEl.appendChild(row);
+    boardRows.push({ row, cells });
+  }
+}
+const KANA = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン";
+const DIGITS = "0123456789";
+function scramble(text, kind) {
+  if (!text) return "";
+  return [...text].map(ch => {
+    if (ch === ":" || ch === " " || ch === "　" || ch === "・") return ch;
+    if (kind === "time" || /\d/.test(ch)) return DIGITS[Math.floor(Math.random() * 10)];
+    if (/[A-Za-z]/.test(ch)) return String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    return KANA[Math.floor(Math.random() * KANA.length)];
+  }).join("");
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function anim(el, from, to, ms) {
+  if (!el.animate) return sleep(ms);
+  return el.animate([{ transform: `rotateX(${from}deg)` }, { transform: `rotateX(${to}deg)` }],
+                    { duration: ms, easing: "ease-in", fill: "forwards" }).finished.catch(() => {});
+}
+async function flipCell(el, kind, text, cls, delay) {
+  const tok = (el._tok || 0) + 1; el._tok = tok;
+  const flap = el.firstChild;
+  const finalClass = kind + (cls ? " " + cls : "") + (kind === "note" && !text ? " empty" : "");
+  if (REDUCED) { flap.textContent = text || "\u00a0"; el.className = finalClass; return; }
+  if (kind === "note" && text) el.classList.remove("empty");
+  await sleep(delay);
+  const steps = 2;
+  for (let k = 0; k < steps; k++) {
+    if (el._tok !== tok) return;
+    await anim(flap, 0, 90, 70);
+    if (el._tok !== tok) return;
+    flap.textContent = scramble(text || flap.textContent, kind) || "\u00a0";
+    await anim(flap, -90, 0, 60);
+  }
+  if (el._tok !== tok) return;
+  await anim(flap, 0, 90, 80);
+  if (el._tok !== tok) return;
+  flap.textContent = text || "\u00a0";
+  el.className = finalClass;
+  await anim(flap, -90, 0, 120);
+}
+function updateBoard(specs, en) {
+  if (!boardRows.length) buildBoard();
+  specs.forEach((sp, i) => {
+    const { row, cells } = boardRows[i];
+    row.classList.toggle("en", en);
+    const vals = {
+      order: [sp.order, ""], type: [sp.type, sp.tcls], time: [sp.time, ""],
+      dest: [sp.dest, sp.wide ? "wide" : ""], note: [sp.note, ""]
+    };
+    CELLS.forEach((c, j) => {
+      const [text, cls] = vals[c];
+      const key = text + "|" + cls;
+      const el = cells[c];
+      if (el.dataset.v === key) return;
+      el.dataset.v = key;
+      if (c === "type" || c === "time") { cells.type.style.display = cells.time.style.display = sp.wide ? "none" : ""; }
+      flipCell(el, c, text, cls, i * 160 + j * 70);
+    });
+  });
+}
+
 function render() {
   const now = new Date();
   document.getElementById("clock").textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -1033,27 +1122,32 @@ function render() {
     if (tk.textContent !== msg) { tk.textContent = msg; if (tk.style) tk.style.animationDuration = Math.max(18, msg.length * 0.45) + "s"; }
   };
 
+  let specs;
   if (next.length === 0) {
-    rowsEl.innerHTML = `<div class="row"><span></span><span style="grid-column:2/-1;color:var(--led-amber)">${en ? "Service has ended for today." : "本日の運転は終了しました"}</span></div>`;
+    specs = [
+      { order: "", type: "", tcls: "", time: "", dest: en ? "Service has ended for today." : "本日の運転は終了しました", wide: true, note: "" },
+      { order: "", type: "", tcls: "", time: "", dest: "", note: "" },
+      { order: "", type: "", tcls: "", time: "", dest: "", note: "" }
+    ];
+  } else {
+    specs = [0, 1, 2].map(i => {
+      const tr = next[i];
+      if (!tr) return { order: "", type: "", tcls: "", time: "", dest: "", note: "" };
+      const ty = TYPES[tr.t], de = DEST[tr.d];
+      const parts = [];
+      if (tr.pf) parts.push(en ? `Track ${tr.pf}` : `${tr.pf}番線から発車`);
+      if (tr.via) parts.push(en ? "via Narita Sky Access Line" : "成田スカイアクセス線経由");
+      if (tr.fl && st.flagNote) parts.push(st.flagNote(tr.fl, en));
+      return { order: order[i], type: en ? ty.en : ty.ja, tcls: ty.cls, time: fmt(tr.min),
+               dest: en ? de[1] : de[0], note: parts.join(en ? " / " : "　") };
+    });
+  }
+  updateBoard(specs, en);
+  if (next.length === 0) {
     const f = trains[0];
     setTicker(en ? `The first train departs at ${fmt(f.min)}.` : `始発は ${fmt(f.min)} 発 ${TYPES[f.t].ja} ${DEST[f.d][0]}行きです。`);
     return;
   }
-  rowsEl.innerHTML = next.map((tr, i) => {
-    const ty = TYPES[tr.t], de = DEST[tr.d];
-    const parts = [];
-    if (tr.pf) parts.push(en ? `Track ${tr.pf}` : `${tr.pf}番線から発車`);
-    if (tr.via) parts.push(en ? "via Narita Sky Access Line" : "成田スカイアクセス線経由");
-    if (tr.fl && st.flagNote) parts.push(st.flagNote(tr.fl, en));
-    const note = parts.join(en ? " / " : "　");
-    return `<div class="row ${en ? "en" : ""}">
-      <span class="order">${order[i]}</span>
-      <span class="type ${ty.cls}">${en ? ty.en : ty.ja}</span>
-      <span class="time">${fmt(tr.min)}</span>
-      <span class="dest">${en ? de[1] : de[0]}</span>
-      <span class="note">${note}</span>
-    </div>`;
-  }).join("");
   const f = next[0];
   setTicker(en
     ? `The next train is the ${TYPES[f.t].en} bound for ${DEST[f.d][1]}${f.via ? " via Narita Sky Access Line" : ""}, departing at ${fmt(f.min)}.`
