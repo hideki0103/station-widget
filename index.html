@@ -185,7 +185,6 @@ body {
 </div>
 
 <div class="stgroups" role="group" aria-label="駅の切替" id="stationBtns"></div>
-<div class="controls" role="group" aria-label="その他の駅" id="extraBtns"></div>
 <div class="controls" role="group" aria-label="ダイヤ切替">
   <button id="dayAuto" aria-pressed="true">ダイヤ自動</button>
   <button id="dayWd" aria-pressed="false">平日</button>
@@ -984,13 +983,6 @@ const STATIONS = [
     hol: { src: "品川駅 浦賀方面・土休日（2025年12月13日改正）", trains: parse(SHINA_DOWN_HOL) },
     stops: shinaDownStops,
     flagNote: (f, en) => en ? `Rear 4 cars go only to ${f === "a" ? "Kanagawa-shimmachi" : "Kanazawa-bunko"}` : `後4両は${f === "a" ? "神奈川新町" : "金沢文庫"}止まり`
-  },
-  {
-    id: "haneda", label: "羽田空港",
-    name: "羽田空港", sub: "KK17",
-    dirJa: "京急蒲田方面（品川・横浜方面）", dirEn: "For Keikyu Kamata, Shinagawa &amp; Yokohama",
-    wd: { src: "羽田空港第1・第2ターミナル駅 京急蒲田方面・平日（2025年12月13日改正）", trains: parse(HANEDA) },
-    stops: hanedaStops
   }
 ];
 
@@ -1173,14 +1165,13 @@ function selectStation(s) {
   document.querySelectorAll("#stationBtns button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.id === s.id)));
   render();
 }
-// 駅ごとに「上り・下り（・空港線）」を縦に並べる。羽田空港は別の段に置く
-const sb = document.getElementById("stationBtns"), xb = document.getElementById("extraBtns");
+// 駅ごとに「上り・下り（・空港線）」を縦に並べる
+const sb = document.getElementById("stationBtns");
 const groups = new Map();
 STATIONS.forEach(s => {
   const b = document.createElement("button");
   b.dataset.id = s.id;
   b.onclick = () => selectStation(s);
-  if (s.id === "haneda") { b.textContent = s.label; xb.appendChild(b); return; }
   b.textContent = s.label.replace(s.name, "").trim();
   let g = groups.get(s.name);
   if (!g) {
