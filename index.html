@@ -151,7 +151,24 @@ button { -webkit-tap-highlight-color: transparent; user-select: none; -webkit-us
 .delaylabel { font-size: 14px; font-weight: 700; }
 .delayctl output { min-width: 3.5em; text-align: center; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .delayctl output.on { color: var(--line-red); }
-.delayctl #delayMinus, .delayctl #delayPlus { width: 44px; font-size: 18px; padding: 4px 0; }
+.delayctl { flex-wrap: nowrap; width: 100%; max-width: 560px; }
+.delayctl #delayReset { flex: none; }
+#delayRange {
+  flex: 1 1 auto; min-width: 0; height: 32px; margin: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; touch-action: pan-y;
+}
+#delayRange::-webkit-slider-runnable-track {
+  height: 8px; border-radius: 4px;
+  background: linear-gradient(to right, var(--line-red) 0 var(--fill, 0%), color-mix(in srgb, var(--wall-ink) 25%, transparent) var(--fill, 0%) 100%);
+}
+#delayRange::-moz-range-track { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--wall-ink) 25%, transparent); }
+#delayRange::-moz-range-progress { height: 8px; border-radius: 4px; background: var(--line-red); }
+#delayRange::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 28px; height: 28px; margin-top: -10px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--line-red); box-shadow: 0 1px 4px rgba(0,0,0,.35);
+}
+#delayRange::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 2px solid var(--line-red); }
+#delayRange:focus-visible { outline: 3px solid var(--line-red); outline-offset: 4px; border-radius: 4px; }
 .controls {
   margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
   font-size: 14px;
@@ -199,10 +216,9 @@ button { -webkit-tap-highlight-color: transparent; user-select: none; -webkit-us
   <button id="dayHol" aria-pressed="false">土休日</button>
 </div>
 <div class="controls delayctl" role="group" aria-label="遅れ補正">
-  <span class="delaylabel">遅れ補正</span>
-  <button id="delayMinus" aria-label="遅れを1分減らす">−</button>
-  <output id="delayVal" aria-live="polite">0分</output>
-  <button id="delayPlus" aria-label="遅れを1分増やす">＋</button>
+  <label class="delaylabel" for="delayRange">遅れ補正</label>
+  <input type="range" id="delayRange" min="0" max="60" step="1" value="0" aria-describedby="delayVal">
+  <output id="delayVal" for="delayRange" aria-live="polite">0分</output>
   <button id="delayReset">リセット</button>
 </div>
 <div class="controls" role="group" aria-label="表示切替">
@@ -1048,12 +1064,17 @@ try {
   const saved = JSON.parse(localStorage.getItem("keikyuBoardDelay") || "null");
   if (saved && saved.date === serviceDateKey()) delay = saved.delay | 0;
 } catch (e) {}
+function showDelay() {
+  const o = document.getElementById("delayVal"), r = document.getElementById("delayRange");
+  o.textContent = delay + "分";
+  o.classList.toggle("on", delay > 0);
+  if (+r.value !== delay) r.value = delay;
+  r.style.setProperty("--fill", (delay / 60 * 100) + "%");
+}
 function setDelay(v) {
   delay = Math.max(0, Math.min(60, v));
   try { localStorage.setItem("keikyuBoardDelay", JSON.stringify({ delay, date: serviceDateKey() })); } catch (e) {}
-  const o = document.getElementById("delayVal");
-  o.textContent = delay + "分";
-  o.classList.toggle("on", delay > 0);
+  showDelay();
   render();
 }
 function buildBoard() {
@@ -1236,8 +1257,24 @@ function setDay(m) {
     document.getElementById(id).setAttribute("aria-pressed", String(v === m));
   render();
 }
-document.getElementById("delayMinus").onclick = () => setDelay(delay - 1);
-document.getElementById("delayPlus").onclick = () => setDelay(delay + 1);
+// iPhone（Safari／Chrome とも WebKit）でボタン連打時にダブルタップ拡大が起きるのを防ぐ。
+// ボタン上のタップは touchend で既定動作（拡大判定）を止め、こちらで click を発生させる。
+let touchStartPos = null;
+document.addEventListener("touchstart", e => {
+  const t = e.touches[0];
+  touchStartPos = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null;
+}, { passive: true });
+document.addEventListener("touchend", e => {
+  const b = e.target.closest && e.target.closest("button");
+  if (!b || !touchStartPos || e.changedTouches.length !== 1) return;
+  const t = e.changedTouches[0];
+  const moved = Math.abs(t.clientX - touchStartPos.x) > 10 || Math.abs(t.clientY - touchStartPos.y) > 10;
+  touchStartPos = null;
+  if (moved) return;               // スクロール操作は邪魔しない
+  e.preventDefault();              // 拡大判定と遅延クリックを止める
+  b.click();
+}, { passive: false });
+document.getElementById("delayRange").addEventListener("input", e => setDelay(+e.target.value));
 document.getElementById("delayReset").onclick = () => setDelay(0);
 lastDelayDate = serviceDateKey();
 setInterval(() => { const k = serviceDateKey(); if (k !== lastDelayDate) { lastDelayDate = k; if (delay) setDelay(0); } }, 60000);
@@ -1283,7 +1320,7 @@ document.addEventListener("visibilitychange", () => {
 
 selectStation(STATIONS[0]);
 fit();
-{ const o = document.getElementById("delayVal"); o.textContent = delay + "分"; o.classList.toggle("on", delay > 0); }
+showDelay();
 setInterval(render, 1000);
 setInterval(() => { showEn = !showEn; if (mode === "auto") render(); }, 5000);
 </script>
