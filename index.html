@@ -144,6 +144,9 @@ body {
 }
 .stgroup button[aria-pressed="true"], .controls button[aria-pressed="true"] { background: var(--wall-ink); color: var(--wall); }
 .stgroup button:focus-visible { outline: 3px solid var(--line-red); outline-offset: 2px; }
+/* ボタンの連打でダブルタップ拡大が起きないようにする（ピンチ操作の拡大はそのまま使える） */
+html, button { touch-action: manipulation; }
+button { -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 .delayctl { align-items: center; }
 .delaylabel { font-size: 14px; font-weight: 700; }
 .delayctl output { min-width: 3.5em; text-align: center; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
