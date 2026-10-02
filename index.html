@@ -96,6 +96,12 @@ body {
   background: linear-gradient(#1b1b1b 0 48%, #000 48% 52%, #1b1b1b 52%);
   border-radius: 3px;
 }
+/* 日本語/英語の切り替えで行の高さが変わらないよう、各セルの高さを固定する */
+.row > span:not(.note) { height: 1.5em; line-height: 1.5em; overflow: hidden; white-space: nowrap; }
+.row .note { height: 1.2em; overflow: hidden; white-space: nowrap; }
+.row .flap { line-height: inherit; vertical-align: top; }
+.row.en .wide { font-size: 1em; }
+.row .wide { text-overflow: ellipsis; }
 .row .wide { grid-column: 2 / -1; color: var(--led-amber); }
 .order { font-size: .62em; color: var(--led-amber); }
 .type { text-align: center; }
