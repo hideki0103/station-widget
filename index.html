@@ -144,6 +144,11 @@ body {
 }
 .stgroup button[aria-pressed="true"], .controls button[aria-pressed="true"] { background: var(--wall-ink); color: var(--wall); }
 .stgroup button:focus-visible { outline: 3px solid var(--line-red); outline-offset: 2px; }
+.delayctl { align-items: center; }
+.delaylabel { font-size: 14px; font-weight: 700; }
+.delayctl output { min-width: 3.5em; text-align: center; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.delayctl output.on { color: var(--line-red); }
+.delayctl #delayMinus, .delayctl #delayPlus { width: 44px; font-size: 18px; padding: 4px 0; }
 .controls {
   margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
   font-size: 14px;
@@ -189,6 +194,13 @@ body {
   <button id="dayAuto" aria-pressed="true">ダイヤ自動</button>
   <button id="dayWd" aria-pressed="false">平日</button>
   <button id="dayHol" aria-pressed="false">土休日</button>
+</div>
+<div class="controls delayctl" role="group" aria-label="遅れ補正">
+  <span class="delaylabel">遅れ補正</span>
+  <button id="delayMinus" aria-label="遅れを1分減らす">−</button>
+  <output id="delayVal" aria-live="polite">0分</output>
+  <button id="delayPlus" aria-label="遅れを1分増やす">＋</button>
+  <button id="delayReset">リセット</button>
 </div>
 <div class="controls" role="group" aria-label="表示切替">
   <button id="btnAuto" aria-pressed="true">日英交互</button>
@@ -1012,7 +1024,7 @@ function dataFor(s) {
 const DAYNAME = { wd: ["平日", "Weekday"], hol: ["土休日", "Sat/Hol"] };
 function updateCaption() {
   const { d, want, fallback } = dataFor(st);
-  let cap = `京急線の時刻表（${d.src}）の全列車を収録しています。遅延や臨時列車は反映されません。種別色はエアポート快特の橙以外は近似です。`;
+  let cap = `京急線の時刻表（${d.src}）の全列車を収録しています。臨時列車は反映されません。遅れは「遅れ補正」で調整できます。種別色はエアポート快特の橙以外は近似です。`;
   if (fallback) cap += ` この方面は${DAYNAME[want][0]}ダイヤがまだ入っていないため、${DAYNAME[want === "wd" ? "hol" : "wd"][0]}ダイヤを表示しています。実際の時刻とは異なります。`;
   const c = document.getElementById("caption");
   if (c.textContent !== cap) c.textContent = cap;
@@ -1023,6 +1035,24 @@ const REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion:
 const CELLS = ["order", "type", "time", "dest", "note"];
 const boardRows = [];
 let lastCtx = null, lastTrains = null;
+// ===== 遅れ補正（分）。その日のうちだけ保持し、翌日（深夜3時区切り）には0に戻る =====
+let delay = 0, lastDelayDate = null;
+function serviceDateKey() {
+  const d = new Date(Date.now() - 3 * 3600 * 1000);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+try {
+  const saved = JSON.parse(localStorage.getItem("keikyuBoardDelay") || "null");
+  if (saved && saved.date === serviceDateKey()) delay = saved.delay | 0;
+} catch (e) {}
+function setDelay(v) {
+  delay = Math.max(0, Math.min(60, v));
+  try { localStorage.setItem("keikyuBoardDelay", JSON.stringify({ delay, date: serviceDateKey() })); } catch (e) {}
+  const o = document.getElementById("delayVal");
+  o.textContent = delay + "分";
+  o.classList.toggle("on", delay > 0);
+  render();
+}
 function buildBoard() {
   for (let i = 0; i < 3; i++) {
     const row = document.createElement("div");
@@ -1121,7 +1151,8 @@ function render() {
   const dlText = DAYNAME[want][en ? 1 : 0];
   if (dl.textContent !== dlText) dl.textContent = dlText;
   updateCaption();
-  const next = trains.filter(tr => tr.min >= nowMin).slice(0, 3);
+  // 遅れ補正：予定時刻＋遅れ分を過ぎるまで発車標に残す（表示する時刻は予定時刻のまま）
+  const next = trains.filter(tr => tr.min + delay >= nowMin).slice(0, 3);
   const tk = document.getElementById("ticker");
   const setTicker = msg => {
     if (tk.textContent !== msg) { tk.textContent = msg; if (tk.style) tk.style.animationDuration = Math.max(18, msg.length * 0.45) + "s"; }
@@ -1140,6 +1171,7 @@ function render() {
       if (!tr) return { order: "", type: "", tcls: "", time: "", dest: "", note: "" };
       const ty = TYPES[tr.t], de = DEST[tr.d];
       const parts = [];
+      if (delay > 0) parts.push(en ? `Delayed approx. ${delay} min` : `約${delay}分遅れ`);
       if (tr.pf) parts.push(en ? `Track ${tr.pf}` : `${tr.pf}番線から発車`);
       if (tr.via) parts.push(en ? "via Narita Sky Access Line" : "成田スカイアクセス線経由");
       if (tr.fl && st.flagNote) parts.push(st.flagNote(tr.fl, en));
@@ -1148,7 +1180,7 @@ function render() {
     });
   }
   // パタパタは「先発が発車して表示が繰り上がったとき」だけ。日英切替・駅/ダイヤ切替は即時に切り替える
-  const ctxKey = st.id + "|" + want;
+  const ctxKey = st.id + "|" + want + "|" + delay;
   const trainKey = next.map(t => t.min + t.t + t.d).join(",");
   const animate = lastCtx === ctxKey && lastTrains !== null && lastTrains !== trainKey;
   lastCtx = ctxKey; lastTrains = trainKey;
@@ -1159,9 +1191,10 @@ function render() {
     return;
   }
   const f = next[0];
-  setTicker(en
+  const delayMsg = delay > 0 ? (en ? `Trains are running approximately ${delay} minutes behind schedule. ` : `ただいま列車は約${delay}分遅れて運転しています。`) : "";
+  setTicker(delayMsg + (en
     ? `The next train is the ${TYPES[f.t].en} bound for ${DEST[f.d][1]}${f.via ? " via Narita Sky Access Line" : ""}, departing at ${fmt(f.min)}.`
-    : `先発の ${TYPES[f.t].ja} ${DEST[f.d][0]}行き${f.via ? "（成田スカイアクセス線経由）" : ""}は、${f.pf ? f.pf + "番線から発車します。" : ""}${st.stops(f)}`);
+    : `先発の ${TYPES[f.t].ja} ${DEST[f.d][0]}行き${f.via ? "（成田スカイアクセス線経由）" : ""}は、${f.pf ? f.pf + "番線から発車します。" : ""}${st.stops(f)}`));
 }
 
 function selectStation(s) {
@@ -1200,6 +1233,11 @@ function setDay(m) {
     document.getElementById(id).setAttribute("aria-pressed", String(v === m));
   render();
 }
+document.getElementById("delayMinus").onclick = () => setDelay(delay - 1);
+document.getElementById("delayPlus").onclick = () => setDelay(delay + 1);
+document.getElementById("delayReset").onclick = () => setDelay(0);
+lastDelayDate = serviceDateKey();
+setInterval(() => { const k = serviceDateKey(); if (k !== lastDelayDate) { lastDelayDate = k; if (delay) setDelay(0); } }, 60000);
 document.getElementById("dayAuto").onclick = () => setDay("auto");
 document.getElementById("dayWd").onclick = () => setDay("wd");
 document.getElementById("dayHol").onclick = () => setDay("hol");
@@ -1242,6 +1280,7 @@ document.addEventListener("visibilitychange", () => {
 
 selectStation(STATIONS[0]);
 fit();
+{ const o = document.getElementById("delayVal"); o.textContent = delay + "分"; o.classList.toggle("on", delay > 0); }
 setInterval(render, 1000);
 setInterval(() => { showEn = !showEn; if (mode === "auto") render(); }, 5000);
 </script>
