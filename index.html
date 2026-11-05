@@ -152,6 +152,9 @@ body {
 .stgroup button:focus-visible { outline: 3px solid var(--line-red); outline-offset: 2px; }
 /* ボタンの連打でダブルタップ拡大が起きないようにする（ピンチ操作の拡大はそのまま使える） */
 html, button { touch-action: manipulation; }
+/* 日英交互〜パタパタはスマホでも横一列に収める */
+.controls[aria-label="表示切替"] { flex-wrap: nowrap; gap: clamp(4px, 1.5vw, 10px); }
+.controls[aria-label="表示切替"] button { padding: 8px clamp(8px, 2.6vw, 14px); font-size: clamp(12px, 3.6vw, 14px); white-space: nowrap; }
 button { -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 .delayctl { align-items: center; }
 .delaylabel { font-size: 14px; font-weight: 700; }
@@ -231,7 +234,6 @@ button { -webkit-tap-highlight-color: transparent; user-select: none; -webkit-us
   <button id="btnAuto" aria-pressed="true">日英交互</button>
   <button id="btnJa" aria-pressed="false">日本語</button>
   <button id="btnEn" aria-pressed="false">English</button>
-  <button id="btnWake" aria-pressed="false">画面を消さない</button>
   <button id="btnFlap">パタパタ</button>
 </div>
 <p class="caption" id="caption"></p>
@@ -1108,6 +1110,34 @@ function buildBoard() {
 }
 const KANA = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン";
 const DIGITS = "0123456789";
+function flapPool(kind, en) {
+  const L = en ? 1 : 0;
+  if (kind === "type") {
+    const seen = new Set(), out = [];
+    for (const ty of Object.values(TYPES)) {
+      const t = en ? ty.en : ty.ja;
+      if (!seen.has(t)) { seen.add(t); out.push({ t, cls: ty.cls }); }
+    }
+    return out;
+  }
+  if (kind === "dest") return Object.values(DEST).map(d => ({ t: d[L] }));
+  if (kind === "order") return (en ? ["Next", "2nd", "3rd"] : ["先発", "次発", "次々発"]).map(t => ({ t }));
+  if (kind === "time") {
+    // 時刻のフラップは実在しうる時刻を送る（5時〜0時台）
+    const out = [];
+    for (let i = 0; i < 12; i++) {
+      const h = 5 + Math.floor(Math.random() * 20) % 24, m = Math.floor(Math.random() * 60);
+      out.push({ t: `${h % 24}:${String(m).padStart(2, "0")}` });
+    }
+    return out;
+  }
+  if (kind === "note") {
+    return (en
+      ? ["Track 1", "Track 3", "Track 4", "Track 6", "via Narita Sky Access Line", ""]
+      : ["1番線から発車", "3番線から発車", "4番線から発車", "6番線から発車", "成田スカイアクセス線経由", ""]).map(t => ({ t }));
+  }
+  return [];
+}
 function scramble(text, kind) {
   if (!text) return "";
   return [...text].map(ch => {
@@ -1127,6 +1157,8 @@ async function flipCell(el, kind, text, cls, delay, animate) {
   const tok = (el._tok || 0) + 1; el._tok = tok;
   const flap = el.firstChild;
   const finalClass = kind + (cls ? " " + cls : "") + (kind === "note" && !text ? " empty" : "");
+  // 途中で止められたアニメーションが「90度傾いたまま（＝見えない）」で残らないよう、先にすべて解除する
+  if (flap.getAnimations) flap.getAnimations().forEach(a => a.cancel());
   if (REDUCED || !animate) { flap.textContent = text || "\u00a0"; el.className = finalClass; return; }
   if (kind === "note" && text) el.classList.remove("empty");
   await sleep(delay);
@@ -1134,12 +1166,18 @@ async function flipCell(el, kind, text, cls, delay, animate) {
   el.classList.add("flipping");
   // 1セルあたり 7〜10回めくれて止まる（セルごとに止まるタイミングを少しずらす）
   const steps = 7 + Math.floor(Math.random() * 4);
+  // めくれている間は、その欄に本来出る項目（種別・行先・時刻など）を本物のフラップのように順に送る
+  const isEn = /[A-Za-z]/.test(text);
+  const pool = flapPool(kind, isEn);
+  let idx = Math.floor(Math.random() * pool.length);
   for (let k = 0; k < steps; k++) {
     if (el._tok !== tok) return;
     const slow = k >= steps - 2 ? 1.6 : 1;      // 止まる直前は少しゆっくり
     await anim(flap, 0, 90, 75 * slow);
     if (el._tok !== tok) return;
-    flap.textContent = scramble(text || flap.textContent, kind) || "\u00a0";
+    const item = pool.length ? pool[(idx + k) % pool.length] : { t: text, cls: "" };
+    flap.textContent = item.t || "\u00a0";
+    if (kind === "type") el.className = "type flipping" + (item.cls ? " " + item.cls : "");
     await anim(flap, -90, 0, 65 * slow);
   }
   if (el._tok !== tok) return;
@@ -1148,6 +1186,7 @@ async function flipCell(el, kind, text, cls, delay, animate) {
   flap.textContent = text || "\u00a0";
   el.className = finalClass;
   await anim(flap, -90, 0, 200);
+  if (el._tok === tok && flap.getAnimations) flap.getAnimations().forEach(a => a.cancel());
 }
 function updateBoard(specs, en, animate) {
   if (!boardRows.length) buildBoard();
@@ -1319,26 +1358,6 @@ if (window.ResizeObserver) new ResizeObserver(fit).observe(fitEl);
 window.addEventListener("orientationchange", () => setTimeout(fit, 200));
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
 
-// 画面を消さない（Screen Wake Lock API、iOS 16.4以降のSafariなど）
-let wakeLock = null;
-const wakeBtn = document.getElementById("btnWake");
-async function requestWake() {
-  try {
-    wakeLock = await navigator.wakeLock.request("screen");
-    wakeBtn.setAttribute("aria-pressed", "true");
-    wakeLock.addEventListener("release", () => wakeBtn.setAttribute("aria-pressed", "false"));
-  } catch (e) {
-    wakeBtn.textContent = "この端末では使えません";
-  }
-}
-if (!("wakeLock" in navigator)) wakeBtn.style.display = "none";
-wakeBtn.onclick = async () => {
-  if (wakeLock && !wakeLock.released) { await wakeLock.release(); wakeLock = null; }
-  else requestWake();
-};
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && wakeBtn.getAttribute("aria-pressed") === "false" && wakeLock) requestWake();
-});
 
 selectStation(STATIONS[0]);
 fit();
