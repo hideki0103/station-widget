@@ -1058,6 +1058,7 @@ function updateCaption() {
 // ===== パタパタ（反転フラップ）表示 =====
 const REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const CELLS = ["order", "type", "time", "dest", "note"];
+const DEPART_SEC = 30; // 時刻表の分の何秒後に発車したとみなすか（0〜59）
 const boardRows = [];
 let lastCtx = null, lastTrains = null;
 // ===== 遅れ補正（分）。その日のうちだけ保持し、翌日（深夜3時区切り）には0に戻る =====
@@ -1182,7 +1183,10 @@ function render() {
   if (dl.textContent !== dlText) dl.textContent = dlText;
   updateCaption();
   // 遅れ補正：予定時刻＋遅れ分を過ぎるまで発車標に残す（表示する時刻は予定時刻のまま）
-  const next = trains.filter(tr => tr.min + delay >= nowMin).slice(0, 3);
+  // 公開時刻表の「分」は秒を省いた表記なので、実際の発車はその分の途中。
+  // 発車時刻の DEPART_SEC 秒後（＋遅れ補正）に先発を繰り上げる。
+  const nowSec = nowMin * 60 + now.getSeconds();
+  const next = trains.filter(tr => (tr.min + delay) * 60 + DEPART_SEC > nowSec).slice(0, 3);
   const tk = document.getElementById("ticker");
   const setTicker = msg => {
     if (tk.textContent !== msg) { tk.textContent = msg; if (tk.style) tk.style.animationDuration = Math.max(18, msg.length * 0.45) + "s"; }
