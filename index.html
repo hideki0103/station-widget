@@ -1297,12 +1297,14 @@ STATIONS.forEach(s => {
 
 function setMode(m) {
   mode = m;
+  try { localStorage.setItem("keikyuBoardLang", m); } catch (e) {}
   for (const [id, v] of [["btnAuto","auto"],["btnJa","ja"],["btnEn","en"]])
     document.getElementById(id).setAttribute("aria-pressed", String(v === m));
   render();
 }
 function setDay(m) {
   dayMode = m;
+  try { localStorage.setItem("keikyuBoardDayMode", m); } catch (e) {}
   for (const [id, v] of [["dayAuto","auto"],["dayWd","wd"],["dayHol","hol"]])
     document.getElementById(id).setAttribute("aria-pressed", String(v === m));
   render();
@@ -1360,6 +1362,14 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
 
 
 selectStation(STATIONS[0]);
+// 前回選んだ「ダイヤ自動／平日／土休日」を復元
+try {
+  const dm = localStorage.getItem("keikyuBoardDayMode");
+  if (dm === "wd" || dm === "hol" || dm === "auto") setDay(dm);
+  // 前回選んだ「日英交互／日本語／English」も復元
+  const lm = localStorage.getItem("keikyuBoardLang");
+  if (lm === "auto" || lm === "ja" || lm === "en") setMode(lm);
+} catch (e) {}
 fit();
 showDelay();
 setInterval(render, 1000);
