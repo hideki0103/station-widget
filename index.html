@@ -232,6 +232,7 @@ button { -webkit-tap-highlight-color: transparent; user-select: none; -webkit-us
   <button id="btnJa" aria-pressed="false">日本語</button>
   <button id="btnEn" aria-pressed="false">English</button>
   <button id="btnWake" aria-pressed="false">画面を消さない</button>
+  <button id="btnFlap">パタパタ</button>
 </div>
 <p class="caption" id="caption"></p>
 
@@ -1291,6 +1292,17 @@ setInterval(() => { const k = serviceDateKey(); if (k !== lastDelayDate) { lastD
 document.getElementById("dayAuto").onclick = () => setDay("auto");
 document.getElementById("dayWd").onclick = () => setDay("wd");
 document.getElementById("dayHol").onclick = () => setDay("hol");
+// パタパタボタン：今の表示内容のまま全セルをめくり直す
+document.getElementById("btnFlap").onclick = () => {
+  boardRows.forEach(({ cells }, i) => {
+    CELLS.forEach((c, j) => {
+      const el = cells[c];
+      const [text, cls] = (el.dataset.v || "|").split("|");
+      if (!text) return;
+      flipCell(el, c, text, cls, i * 300 + j * 120, true);
+    });
+  });
+};
 document.getElementById("btnAuto").onclick = () => setMode("auto");
 document.getElementById("btnJa").onclick = () => setMode("ja");
 document.getElementById("btnEn").onclick = () => setMode("en");
